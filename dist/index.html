@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Bambuddy Monitor</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <div id="video"><img id="v" alt=""><div id="msg">Waiting for camera…</div></div>
+  <div id="title">&nbsp;</div>
+  <div id="bar"><div id="fill"></div><div id="pct"></div></div>
+  <div id="sub"></div>
+  <div class="row">
+    <div id="detail"></div>
+    <div id="actions" hidden>
+      <button id="stop" class="danger">Stop print</button>
+      <span id="confirm" hidden>Stop this print? <button id="yes" class="danger">Stop</button> <button id="no">Cancel</button></span>
+    </div>
+  </div>
+<script>
+const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
+const $ = (id) => document.getElementById(id);
+const ACTIVE = ["RUNNING", "PREPARE", "PAUSE", "SLICING"];
+
+function remaining(min) {
+  if (!min) return "--";
+  const h = Math.floor(min / 60), m = Math.floor(min % 60);
+  return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+function render(s) {
+  if (!s) return;
+  const name = s.subtask_name || s.current_print || "";
+  const state = s.state || "?";
+  $("title").textContent = name ? `${s.name}: ${name}` : s.name;
+  const pct = Math.round(s.progress || 0);
+  $("fill").style.width = pct + "%";
+  $("pct").textContent = pct + "%";
+  const layers = s.total_layers ? `Layer ${s.layer_num}/${s.total_layers}  ·  ` : "";
+  $("sub").textContent = `${state[0] + state.slice(1).toLowerCase()}  ·  ${layers}${remaining(s.remaining_time)} left`;
+  const t = s.temperatures || {}, bits = [];
+  if (t.nozzle != null) bits.push(`Nozzle ${Math.round(t.nozzle)}°`);
+  if (t.bed != null) bits.push(`Bed ${Math.round(t.bed)}°`);
+  if (t.chamber != null) bits.push(`Chamber ${Math.round(t.chamber)}°`);
+  const hms = (s.hms_errors || []).length;
+  if (hms) bits.push(`⚠ ${hms} printer warning(s)`);
+  $("detail").textContent = bits.join("  ·  ");
+  $("actions").hidden = !ACTIVE.includes(state);
+}
+
+function msg(text) { $("msg").textContent = text; $("msg").hidden = false; }
+
+let retry;
+async function camera() {
+  clearTimeout(retry);
+  try {
+    $("v").src = await invoke("camera_url");
+  } catch (e) {
+    msg(`Camera unavailable: ${e}. Retrying…`);
+    retry = setTimeout(camera, 5000);
+  }
+}
+$("v").addEventListener("load", () => { $("msg").hidden = true; });
+$("v").addEventListener("error", () => { msg("Camera unavailable. Retrying…"); clearTimeout(retry); retry = setTimeout(camera, 5000); });
+
+$("stop").onclick = () => { $("stop").hidden = true; $("confirm").hidden = false; };
+$("no").onclick = () => { $("stop").hidden = false; $("confirm").hidden = true; };
+$("yes").onclick = async () => {
+  $("no").onclick();
+  $("stop").disabled = true;
+  try { await invoke("stop_print"); } catch (e) { $("detail").textContent = `Couldn't stop the print: ${e}`; }
+  $("stop").disabled = false;
+};
+
+listen("status", (e) => render(e.payload));
+invoke("get_status").then(render);
+camera();
+</script></body></html>

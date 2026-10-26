@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Bambuddy Monitor settings</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <label for="url">Bambuddy URL</label><input id="url" placeholder="https://bambuddy.example.com">
+  <label for="key">API key</label><input id="key" type="password" placeholder="bb_… (Bambuddy › Settings › API Keys)">
+  <label for="printer">Printer</label>
+  <div class="row"><select id="printer"><option value="">All printers</option></select><button id="load">Load printers</button></div>
+  <label class="check"><input id="hide" type="checkbox"> Hide the window after a print ends</label>
+  <div id="note"></div>
+  <div class="row" style="justify-content:flex-end"><button id="cancel">Cancel</button><button id="save" class="danger" style="background:var(--acc);border-color:var(--acc)">Save</button></div>
+<script>
+const { invoke } = window.__TAURI__.core;
+const $ = (id) => document.getElementById(id);
+let cfg;
+
+async function loadPrinters() {
+  try {
+    const list = await invoke("list_printers", { url: $("url").value, key: $("key").value });
+    $("printer").innerHTML = '<option value="">All printers</option>' +
+      list.map((p) => `<option value="${p.id}">${p.name.replace(/</g, "&lt;")}</option>`).join("");
+    $("printer").value = cfg.printer_id ?? "";
+    $("note").textContent = `Connected, ${list.length} printer(s).`;
+  } catch (e) { $("note").textContent = String(e); }
+}
+
+$("load").onclick = loadPrinters;
+$("cancel").onclick = () => window.close();
+$("save").onclick = async () => {
+  const next = { ...cfg, url: $("url").value.trim().replace(/\/+$/, ""), api_key: $("key").value.trim(),
+    printer_id: $("printer").value ? Number($("printer").value) : null, auto_hide: $("hide").checked };
+  try { await invoke("save_config", { cfg: next }); window.close(); } catch (e) { $("note").textContent = String(e); }
+};
+
+invoke("get_config").then((c) => {
+  cfg = c; $("url").value = c.url; $("key").value = c.api_key; $("hide").checked = c.auto_hide;
+  if (c.url) loadPrinters();
+});
+</script></body></html>
