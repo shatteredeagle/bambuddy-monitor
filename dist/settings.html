@@ -6,6 +6,7 @@
   <label for="printer">Printer</label>
   <div class="row"><select id="printer"><option value="">All printers</option></select><button id="load">Load printers</button></div>
   <label class="check"><input id="hide" type="checkbox"> Hide the window after a print ends</label>
+  <label class="check"><input id="upd" type="checkbox"> Check for new versions daily</label>
   <div class="group">Alerts</div>
   <div id="alerts"></div>
   <div class="row" style="justify-content:flex-start"><button id="test">Send test notification</button></div>
@@ -21,7 +22,11 @@ const ALERTS = [
   ["offline", "Printer goes offline"], ["open_window", "Open the window for alerts that need you"],
 ];
 $("alerts").innerHTML = ALERTS.map(([k, label]) => `<label class="check"><input type="checkbox" data-k="${k}"> ${label}</label>`).join("");
-$("test").onclick = () => invoke("test_alert");
+$("test").onclick = async () => {
+  $("note").textContent = "Sending…";
+  try { await invoke("test_alert"); $("note").textContent = "Sent. If you saw nothing, check your desktop's notification settings (Do Not Disturb?)."; }
+  catch (e) { $("note").textContent = `Couldn't send: ${e}`; }
+};
 
 async function loadPrinters() {
   try {
@@ -37,13 +42,13 @@ $("load").onclick = loadPrinters;
 $("cancel").onclick = () => window.close();
 $("save").onclick = async () => {
   const next = { ...cfg, url: $("url").value.trim().replace(/\/+$/, ""), api_key: $("key").value.trim(),
-    printer_id: $("printer").value ? Number($("printer").value) : null, auto_hide: $("hide").checked,
+    printer_id: $("printer").value ? Number($("printer").value) : null, auto_hide: $("hide").checked, check_updates: $("upd").checked,
     alerts: Object.fromEntries([...document.querySelectorAll("[data-k]")].map((i) => [i.dataset.k, i.checked])) };
   try { await invoke("save_config", { cfg: next }); window.close(); } catch (e) { $("note").textContent = String(e); }
 };
 
 invoke("get_config").then((c) => {
-  cfg = c; $("url").value = c.url; $("key").value = c.api_key; $("hide").checked = c.auto_hide;
+  cfg = c; $("url").value = c.url; $("key").value = c.api_key; $("hide").checked = c.auto_hide; $("upd").checked = c.check_updates;
   document.querySelectorAll("[data-k]").forEach((i) => { i.checked = c.alerts[i.dataset.k]; });
   if (c.url) loadPrinters();
 });

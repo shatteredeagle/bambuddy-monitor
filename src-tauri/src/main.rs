@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod alerts;
+mod update;
 
 use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
 
@@ -12,6 +13,7 @@ use tauri::{
     AppHandle, Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_opener::OpenerExt;
 use tokio::task::AbortHandle;
 
 use alerts::AlertPrefs;
@@ -34,11 +36,12 @@ struct Config {
     auto_hide: bool,
     hide_delay_s: u64,
     alerts: AlertPrefs,
+    check_updates: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { url: String::new(), api_key: String::new(), printer_id: None, auto_hide: true, hide_delay_s: 60, alerts: AlertPrefs::default() }
+        Config { url: String::new(), api_key: String::new(), printer_id: None, auto_hide: true, hide_delay_s: 60, alerts: AlertPrefs::default(), check_updates: true }
     }
 }
 
@@ -51,6 +54,8 @@ struct AppState {
     last_alert: Mutex<Option<String>>,
     hide: Mutex<Option<AbortHandle>>,
     alert_mem: Mutex<alerts::Memory>,
+    update: Mutex<Option<update::Release>>,
+    update_notified: Mutex<Option<String>>,
     http: reqwest::Client,
 }
 
@@ -188,12 +193,44 @@ fn show_settings(app: &AppHandle) {
 }
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
-    let _ = app.notification().builder().title(title).body(body).show();
+    if let Err(e) = app.notification().builder().title(title).body(body).show() {
+        eprintln!("notification failed: {e}");
+    }
 }
 
 #[tauri::command]
-fn test_alert(app: AppHandle) {
-    notify(&app, "Bambuddy Monitor", "Notifications work.");
+async fn test_alert(app: AppHandle) -> Result<(), String> {
+    app.notification().builder().title("Bambuddy Monitor").body("Notifications work.").show().map_err(|e| e.to_string())
+}
+
+/// `manual`: the user asked (tray menu), so always answer and open the download page.
+async fn check_updates(app: AppHandle, manual: bool) {
+    let st = app.state::<AppState>();
+    match update::latest(&st.http).await {
+        Ok(Some(r)) if update::is_newer(update::CURRENT, &r.version) => {
+            let first_time = st.update_notified.lock().unwrap().replace(r.version.clone()).as_deref() != Some(r.version.as_str());
+            if manual || first_time {
+                notify(&app, "Update available", &format!("Bambuddy Monitor {} is out (you have {}).", r.version, update::CURRENT));
+            }
+            if manual {
+                let _ = app.opener().open_url(&r.url, None::<&str>);
+            }
+            *st.update.lock().unwrap() = Some(r);
+        }
+        Ok(_) if manual => notify(&app, "Bambuddy Monitor", &format!("You're up to date (v{}).", update::CURRENT)),
+        Err(e) if manual => notify(&app, "Couldn't check for updates", &e),
+        _ => {}
+    }
+}
+
+async fn update_loop(app: AppHandle) {
+    tokio::time::sleep(Duration::from_secs(30)).await;
+    loop {
+        if app.state::<AppState>().cfg.lock().unwrap().check_updates {
+            check_updates(app.clone(), false).await;
+        }
+        tokio::time::sleep(Duration::from_secs(24 * 3600)).await;
+    }
 }
 
 // ---- polling ----
@@ -310,6 +347,7 @@ fn load_config(path: &PathBuf) -> Config {
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_monitor(app)))
         .on_window_event(|window, event| {
             // Bambu printers allow one camera connection: release it when the monitor window goes away.
@@ -339,13 +377,17 @@ fn main() {
                 last_alert: Mutex::new(None),
                 hide: Mutex::new(None),
                 alert_mem: Mutex::new(alerts::Memory::default()),
+                update: Mutex::new(None),
+                update_notified: Mutex::new(None),
                 http,
             });
 
+            let version = MenuItem::with_id(app, "version", format!("Bambuddy Monitor v{}", update::CURRENT), false, None::<&str>)?;
+            let updates = MenuItem::with_id(app, "updates", "Check for updates…", true, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &settings, &PredefinedMenuItem::separator(app)?, &quit])?;
+            let menu = Menu::with_items(app, &[&version, &PredefinedMenuItem::separator(app)?, &show, &settings, &updates, &PredefinedMenuItem::separator(app)?, &quit])?;
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Bambuddy Monitor")
@@ -353,6 +395,9 @@ fn main() {
                 .on_menu_event(|app, ev| match ev.id().as_ref() {
                     "show" => show_monitor(app),
                     "settings" => show_settings(app),
+                    "updates" => {
+                        tauri::async_runtime::spawn(check_updates(app.clone(), true));
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -362,6 +407,7 @@ fn main() {
                 show_settings(app.handle());
             }
             tauri::async_runtime::spawn(poll_loop(app.handle().clone()));
+            tauri::async_runtime::spawn(update_loop(app.handle().clone()));
             Ok(())
         })
         .build(tauri::generate_context!())

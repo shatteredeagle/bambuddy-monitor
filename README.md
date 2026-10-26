@@ -35,6 +35,7 @@ It never talks to the printer directly. It only needs your Bambuddy URL and an A
   - printer went offline
 - The window hides itself a while after a print ends (configurable).
 - **Light on resources:** a small Rust process polling every 3 seconds. The window and its webview only exist while the window is shown, and the camera stream is released when it closes.
+- **Update check:** looks for a newer release once a day (switch it off in Settings) and tells you; the tray menu has **Check for updates…**, which opens the download page. It never replaces itself, so `.deb`, `.rpm` and Arch installs stay under your package manager's control.
 - Watch **all printers** or pick **one**.
 - One instance at a time. Follows your light or dark theme.
 
