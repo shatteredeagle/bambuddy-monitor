@@ -1,34 +1,97 @@
+<div align="center">
+
+<img src="bambuddy-monitor.svg" width="96" alt="Bambuddy Monitor icon">
+
 # Bambuddy Monitor
 
-A small Linux tray app for [Bambuddy](https://github.com/maziggy/bambuddy). When a print starts, a window pops up with the **live camera** and **print status** (progress, layer, time left, temperatures, printer warnings), with a **Stop print** button. It hides itself after the print ends.
+**Start a print and your camera and progress pop up on their own.**
+A tiny Linux tray app for [Bambuddy](https://github.com/maziggy/bambuddy).
 
-Unofficial companion; not affiliated with Bambuddy or Bambu Lab.
+[![CI](https://github.com/shatteredeagle/bambuddy-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/shatteredeagle/bambuddy-monitor/actions/workflows/ci.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-- Lightweight: Rust + [Tauri 2](https://tauri.app). The window (and its webview) exists only while shown; idle cost is a small poller.
-- Talks only to your Bambuddy server (REST API key), never to the printer directly. Several viewers can watch at once because Bambuddy fans the camera out.
-- Desktop notification when a print finishes or fails.
+<img src="docs/screenshot.png" width="540" alt="Bambuddy Monitor showing a live camera feed, progress bar, layer count, time remaining and a Stop print button">
+
+<sub>Screenshot uses a simulated printer.</sub>
+
+</div>
+
+## Overview
+
+Bambuddy already has a web UI and camera wall, but you have to remember to open them. Bambuddy Monitor sits in your system tray, watches your printers through the Bambuddy API, and **opens a window by itself when a print starts**. When the print ends it tells you, then tucks itself away.
+
+It never talks to the printer directly. It only needs your Bambuddy URL and an API key.
+
+## Features
+
+- **Auto popup** when a printer goes from idle to preparing, running or paused. If a print is already running when you launch it, it pops up once.
+- **Live camera** from Bambuddy's MJPEG stream. Bambuddy fans one printer connection out to every viewer, so the monitor, the web UI and other apps can all watch at the same time.
+- **Print status:** progress, layer, time remaining, nozzle / bed / chamber temperatures and a printer-warning count.
+- **Stop print** button, with an inline confirm so it can't be hit by accident.
+- **Desktop notification** when a print finishes or fails, then the window hides itself after a delay (configurable).
+- **Light on resources:** a small Rust process polling every 3 seconds. The window and its webview only exist while the window is shown, and the camera stream is released when it closes.
+- Watch **all printers** or pick **one**.
+- One instance at a time. Follows your light or dark theme.
 
 ## Install
 
-Grab a package from [Releases](../../releases) (`.deb`, `.rpm`, AppImage), or on Arch build the PKGBUILD:
+Download a package from the [latest release](../../releases/latest):
 
-    git clone https://github.com/shatteredeagle/bambuddy-monitor && cd bambuddy-monitor && makepkg -si
+| Distro | Package |
+|---|---|
+| Debian, Ubuntu | `.deb` |
+| Fedora, openSUSE | `.rpm` |
+| Arch | `.pkg.tar.zst`, or `makepkg -si` from a clone |
+| Anything else | `.AppImage` |
 
-Runtime needs: `webkit2gtk-4.1`, `libayatana-appindicator`, `gtk3`. Your desktop must show tray icons (KDE does; GNOME needs the AppIndicator extension).
+Runtime needs `webkit2gtk-4.1`, `gtk3` and `libayatana-appindicator`. Your desktop must display tray icons. KDE Plasma does (the only desktop tested so far); GNOME needs the AppIndicator extension, and other desktops may need a StatusNotifier or AppIndicator tray plugin.
 
 ## Set up
 
-First run opens Settings: your Bambuddy URL and an API key (Bambuddy > Settings > API Keys), and optionally one printer to watch. Config lives in `~/.config/bambuddy-monitor/config.json`. Right-click the tray icon for Show / Settings / Quit. To start at login, copy the `.desktop` file to `~/.config/autostart/`.
+1. Launch **Bambuddy Monitor**. The first run opens Settings.
+2. Enter your Bambuddy URL (for example `https://bambuddy.example.com`) and an API key from **Bambuddy > Settings > API Keys**.
+3. Click **Load printers**, optionally choose one printer, and **Save**.
 
-## Build
+That's it. Right-click the tray icon for **Show**, **Settings** and **Quit**. To start it at login, copy its `.desktop` file to `~/.config/autostart/`.
 
-Needs rust, `webkit2gtk-4.1` and `libayatana-appindicator`.
+Settings are stored in `~/.config/bambuddy-monitor/config.json` (readable only by you). The API key is stored in plain text there, like most small desktop tools. Use a key with only the permissions you need.
 
-    cd src-tauri && cargo build --release        # binary at src-tauri/target/release/bambuddy-monitor
-    cargo install tauri-cli --locked && cargo tauri build   # .deb / .rpm / AppImage
+## How it works
 
-`tools/make-icons.py` re-renders the icons from the SVG (PySide6).
+```
+Bambuddy ──REST──▶ Rust poller (every 3 s) ──▶ pops the window on a print start
+    └────MJPEG camera stream────────────────▶ webview <img> (only while open)
+```
+
+The poller reads `/printers/{id}/status`. The window is a small webview that shows the camera stream directly, so no video code is needed. Stop print calls `/printers/{id}/print/stop`.
+
+## FAQ
+
+**Does it work with Bambu Studio or Handy at the same time?** Bambuddy Monitor only talks to Bambuddy, so it never competes for the printer's single camera connection. Apps that connect straight to the printer may.
+
+**GNOME shows no tray icon.** Install the AppIndicator / KStatusNotifierItem extension.
+
+**The taskbar shows a generic icon.** Install a package rather than running the bare binary. The icon is matched by the installed `.desktop` file.
+
+**Windows or macOS?** Tauri supports both, but only Linux is built and tested so far.
+
+## Build from source
+
+Needs Rust, `webkit2gtk-4.1` and `libayatana-appindicator` (plus their `-dev` packages on Debian-based systems).
+
+```sh
+cd src-tauri
+cargo build --release          # binary at src-tauri/target/release/bambuddy-monitor
+cargo install tauri-cli --locked
+cargo tauri build              # .deb / .rpm / AppImage
+```
+
+`tools/make-icons.py` re-renders the PNG icons from `bambuddy-monitor.svg` (needs PySide6). Pushing a `vX.Y.Z` tag builds and publishes a release (see `.github/workflows/release.yml`); the tag must match the version in `Cargo.toml` and `tauri.conf.json`.
+
+## Not affiliated
+
+An unofficial community project. Bambuddy is by [maziggy](https://github.com/maziggy/bambuddy). Bambu Lab is a trademark of its owner; this project is not affiliated with or endorsed by either.
 
 ## Licence
 
-AGPL-3.0-or-later, see [LICENSE](LICENSE).
+[AGPL-3.0-or-later](LICENSE)
