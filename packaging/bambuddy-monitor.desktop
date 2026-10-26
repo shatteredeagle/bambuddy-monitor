@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Bambuddy Monitor
+Comment=Live camera and status when a Bambuddy print starts
+Exec=bambuddy-monitor
+Icon=bambuddy-monitor
+Categories=Utility;
+StartupNotify=false
