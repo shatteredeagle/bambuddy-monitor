@@ -5,7 +5,8 @@ pkgver=0.2.0
 pkgrel=1
 pkgdesc='Tray app that pops up a live camera and status window when a Bambuddy print starts'
 arch=(x86_64 aarch64)
-license=(custom)
+license=(AGPL-3.0-or-later)
+url=https://github.com/shatteredeagle/bambuddy-monitor
 depends=(webkit2gtk-4.1 libayatana-appindicator gtk3)
 makedepends=(rust)
 options=(!lto)
@@ -19,5 +20,6 @@ package() {
   cd "$srcdir/build"
   install -Dm755 src-tauri/target/release/bambuddy-monitor "$pkgdir/usr/bin/bambuddy-monitor"
   install -Dm644 "$startdir/packaging/bambuddy-monitor.desktop" "$pkgdir/usr/share/applications/bambuddy-monitor.desktop"
+  install -Dm644 "$startdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 bambuddy-monitor.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/bambuddy-monitor.svg"
 }

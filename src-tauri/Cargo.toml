@@ -3,6 +3,8 @@ name = "bambuddy-monitor"
 version = "0.2.0"
 description = "Tray app that pops up a live camera and status window when a Bambuddy print starts"
 edition = "2021"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/shatteredeagle/bambuddy-monitor"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
