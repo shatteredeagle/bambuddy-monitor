@@ -2,17 +2,19 @@
 @media (prefers-color-scheme: dark) { :root { --bg:#1d1d20; --fg:#eaeaea; --mut:#999; --card:#2a2a2e; --bd:#444; } }
 * { box-sizing: border-box; }
 html, body { height:100%; margin:0; }
-body { background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif; display:flex; flex-direction:column; padding:12px; gap:8px; }
-#video { flex:1; min-height:0; background:#111; border-radius:6px; position:relative; display:flex; align-items:center; justify-content:center; }
-#v { max-width:100%; max-height:100%; object-fit:contain; }
-#msg { position:absolute; color:#aaa; text-align:center; padding:0 16px; }
-#title { font-size:16px; font-weight:600; }
+body { overflow:auto; background:var(--bg); color:var(--fg); font:14px system-ui, sans-serif; display:flex; flex-direction:column; padding:12px; gap:8px; }
+#video { flex:1 1 auto; min-height:120px; background:#111; border-radius:6px; position:relative; display:flex; align-items:center; justify-content:center; }
+#v { display:none; max-width:100%; max-height:100%; object-fit:contain; }
+#v.on { display:block; }
+#msg { position:absolute; color:#aaa; text-align:center; padding:0 16px; max-width:100%; overflow-wrap:anywhere; }
+#title { font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:none; }
+#sub, #detail { overflow-wrap:anywhere; }
 #bar { height:20px; background:var(--card); border:1px solid var(--bd); border-radius:4px; overflow:hidden; position:relative; }
 #fill { height:100%; width:0; background:var(--acc); transition:width .4s; }
 #pct { position:absolute; inset:0; text-align:center; line-height:20px; font-size:12px; color:var(--fg); mix-blend-mode:normal; }
-.row { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+.row { display:flex; align-items:center; gap:8px; justify-content:space-between; flex-wrap:wrap; }
 #detail { color:var(--mut); }
-button { font:inherit; padding:6px 14px; border-radius:4px; border:1px solid var(--bd); background:var(--card); color:var(--fg); cursor:pointer; }
+button { white-space:nowrap; font:inherit; padding:6px 14px; border-radius:4px; border:1px solid var(--bd); background:var(--card); color:var(--fg); cursor:pointer; }
 button.danger { background:var(--danger); border-color:var(--danger); color:#fff; }
 button:disabled { opacity:.5; cursor:default; }
 [hidden] { display:none !important; }

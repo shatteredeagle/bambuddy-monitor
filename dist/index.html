@@ -8,7 +8,7 @@
   <div id="sub"></div>
   <div class="row">
     <div id="detail"></div>
-    <div id="actions" hidden>
+    <div id="actions" style="margin-left:auto" hidden>
       <button id="stop" class="danger">Stop print</button>
       <span id="confirm" hidden>Stop this print? <button id="yes" class="danger">Stop</button> <button id="no">Cancel</button></span>
     </div>
@@ -57,8 +57,8 @@ async function camera() {
     retry = setTimeout(camera, 5000);
   }
 }
-$("v").addEventListener("load", () => { $("msg").hidden = true; });
-$("v").addEventListener("error", () => { msg("Camera unavailable. Retrying…"); clearTimeout(retry); retry = setTimeout(camera, 5000); });
+$("v").addEventListener("load", () => { $("v").classList.add("on"); $("msg").hidden = true; });
+$("v").addEventListener("error", () => { $("v").classList.remove("on"); $("v").removeAttribute("src"); msg("Camera unavailable. Retrying…"); clearTimeout(retry); retry = setTimeout(camera, 5000); });
 
 $("stop").onclick = () => { $("stop").hidden = true; $("confirm").hidden = false; };
 $("no").onclick = () => { $("stop").hidden = false; $("confirm").hidden = true; };

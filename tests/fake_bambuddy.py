@@ -7,6 +7,7 @@
 Steps: 0 printing, 1 spool in use low, 2 paused + out of filament, 3 resumed, 4 finished, 5 offline.
 """
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -15,7 +16,7 @@ step = 0
 
 def status():
     s = {
-        "id": 1, "name": "P1S", "connected": step < 5, "state": "RUNNING", "subtask_name": "Benchy",
+        "id": 1, "name": "P1S", "connected": step < 5, "state": "RUNNING", "subtask_name": os.environ.get("FAKE_JOB", "Benchy"),
         "progress": 40.0, "remaining_time": 80, "layer_num": 60, "total_layers": 160, "hms_errors": [],
         "temperatures": {"nozzle": 220, "bed": 55, "chamber": 30}, "tray_now": 1,
         "ams": [{"id": 0, "tray": [{"id": 0, "remain": 80}, {"id": 1, "remain": 10 if step >= 1 else 60}]}],

@@ -174,6 +174,7 @@ fn open_window(app: &AppHandle, label: &str, page: &str, title: &str, size: (f64
     let _ = WebviewWindowBuilder::new(app, label, WebviewUrl::App(page.into()))
         .title(title)
         .inner_size(size.0, size.1)
+        .min_inner_size(size.0.min(400.0), size.1.min(380.0))
         .build();
 }
 
