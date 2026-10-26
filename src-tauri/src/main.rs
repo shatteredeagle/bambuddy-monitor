@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod alerts;
+
 use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
 
 use serde::{Deserialize, Serialize};
@@ -11,6 +13,8 @@ use tauri::{
 };
 use tauri_plugin_notification::NotificationExt;
 use tokio::task::AbortHandle;
+
+use alerts::AlertPrefs;
 
 const POLL: Duration = Duration::from_secs(3);
 const ACTIVE: [&str; 4] = ["RUNNING", "PREPARE", "PAUSE", "SLICING"];
@@ -29,11 +33,12 @@ struct Config {
     printer_id: Option<i64>,
     auto_hide: bool,
     hide_delay_s: u64,
+    alerts: AlertPrefs,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { url: String::new(), api_key: String::new(), printer_id: None, auto_hide: true, hide_delay_s: 60 }
+        Config { url: String::new(), api_key: String::new(), printer_id: None, auto_hide: true, hide_delay_s: 60, alerts: AlertPrefs::default() }
     }
 }
 
@@ -43,7 +48,9 @@ struct AppState {
     states: Mutex<HashMap<i64, String>>,
     shown: Mutex<Option<i64>>,
     last: Mutex<Option<Value>>,
+    last_alert: Mutex<Option<String>>,
     hide: Mutex<Option<AbortHandle>>,
+    alert_mem: Mutex<alerts::Memory>,
     http: reqwest::Client,
 }
 
@@ -127,6 +134,11 @@ async fn list_printers(url: String, key: String, state: State<'_, AppState>) -> 
 }
 
 #[tauri::command]
+fn get_alert(state: State<AppState>) -> Option<String> {
+    state.last_alert.lock().unwrap().clone()
+}
+
+#[tauri::command]
 fn get_status(state: State<AppState>) -> Option<Value> {
     state.last.lock().unwrap().clone()
 }
@@ -172,11 +184,16 @@ fn show_monitor(app: &AppHandle) {
 }
 
 fn show_settings(app: &AppHandle) {
-    open_window(app, "settings", "settings.html", "Bambuddy Monitor settings", (480.0, 400.0));
+    open_window(app, "settings", "settings.html", "Bambuddy Monitor settings", (480.0, 660.0));
 }
 
-fn notify(app: &AppHandle, body: &str) {
-    let _ = app.notification().builder().title("Bambuddy Monitor").body(body).show();
+fn notify(app: &AppHandle, title: &str, body: &str) {
+    let _ = app.notification().builder().title(title).body(body).show();
+}
+
+#[tauri::command]
+fn test_alert(app: AppHandle) {
+    notify(&app, "Bambuddy Monitor", "Notifications work.");
 }
 
 // ---- polling ----
@@ -202,6 +219,18 @@ fn handle_statuses(app: &AppHandle, cfg: &Config, statuses: Vec<(i64, Value)>) {
     for (pid, s) in statuses {
         let new = s["state"].as_str().unwrap_or("").to_string();
         let old = st.states.lock().unwrap().insert(pid, new.clone());
+        let found = alerts::detect(&cfg.alerts, pid, old.as_deref(), &s, &mut st.alert_mem.lock().unwrap());
+        for a in found {
+            notify(app, &a.title, &a.body);
+            let line = format!("{}: {}", a.title, a.body);
+            *st.last_alert.lock().unwrap() = Some(line.clone());
+            let _ = app.emit_to("main", "alert", line);
+            if a.needs_you && cfg.alerts.open_window && app.get_webview_window("main").is_none() {
+                *st.shown.lock().unwrap() = Some(pid);
+                *st.last.lock().unwrap() = Some(s.clone());
+                show_monitor(app);
+            }
+        }
         if !s["connected"].as_bool().unwrap_or(false) {
             continue;
         }
@@ -229,8 +258,6 @@ fn handle_statuses(app: &AppHandle, cfg: &Config, statuses: Vec<(i64, Value)>) {
             let _ = app.emit_to("main", "status", &s);
             let ended = old.as_deref().is_some_and(is_active) && DONE.contains(&new.as_str());
             if ended && window_open {
-                let name = s["name"].as_str().unwrap_or("Printer");
-                notify(app, &format!("{name}: {}", new.to_lowercase()));
                 if cfg.auto_hide {
                     let app2 = app.clone();
                     let delay = Duration::from_secs(cfg.hide_delay_s);
@@ -266,7 +293,7 @@ async fn poll_loop(app: AppHandle) {
                 }
                 Err(e) => {
                     if !err_notified {
-                        notify(&app, &e);
+                        notify(&app, "Bambuddy Monitor", &e);
                     }
                     err_notified = true;
                 }
@@ -297,7 +324,7 @@ fn main() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_config, save_config, list_printers, get_status, camera_url, stop_print])
+        .invoke_handler(tauri::generate_handler![get_alert, test_alert, get_config, save_config, list_printers, get_status, camera_url, stop_print])
         .setup(|app| {
             let cfg_path = app.path().config_dir()?.join("bambuddy-monitor").join("config.json");
             let cfg = load_config(&cfg_path);
@@ -309,7 +336,9 @@ fn main() {
                 states: Mutex::new(HashMap::new()),
                 shown: Mutex::new(None),
                 last: Mutex::new(None),
+                last_alert: Mutex::new(None),
                 hide: Mutex::new(None),
+                alert_mem: Mutex::new(alerts::Memory::default()),
                 http,
             });
 

@@ -2,6 +2,7 @@
 <html><head><meta charset="utf-8"><title>Bambuddy Monitor</title><link rel="stylesheet" href="style.css"></head>
 <body>
   <div id="video"><img id="v" alt=""><div id="msg">Waiting for camera…</div></div>
+  <div id="alert" hidden title="Click to dismiss"></div>
   <div id="title">&nbsp;</div>
   <div id="bar"><div id="fill"></div><div id="pct"></div></div>
   <div id="sub"></div>
@@ -68,6 +69,10 @@ $("yes").onclick = async () => {
   $("stop").disabled = false;
 };
 
+function alertLine(text) { $("alert").textContent = "⚠ " + text; $("alert").hidden = !text; }
+$("alert").onclick = () => { $("alert").hidden = true; };
+listen("alert", (e) => alertLine(e.payload));
+invoke("get_alert").then((a) => a && alertLine(a));
 listen("status", (e) => render(e.payload));
 invoke("get_status").then(render);
 camera();

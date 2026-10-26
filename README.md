@@ -28,7 +28,12 @@ It never talks to the printer directly. It only needs your Bambuddy URL and an A
 - **Live camera** from Bambuddy's MJPEG stream. Bambuddy fans one printer connection out to every viewer, so the monitor, the web UI and other apps can all watch at the same time.
 - **Print status:** progress, layer, time remaining, nozzle / bed / chamber temperatures and a printer-warning count.
 - **Stop print** button, with an inline confirm so it can't be hit by accident.
-- **Desktop notification** when a print finishes or fails, then the window hides itself after a delay (configurable).
+- **Alerts** as desktop notifications, each one a switch in Settings:
+  - print finished, failed or stopped, and paused
+  - **out of filament** and other printer warnings (a warning that needs you also opens the window)
+  - **filament low**, when the spool in use drops to 15% or less
+  - printer went offline
+- The window hides itself a while after a print ends (configurable).
 - **Light on resources:** a small Rust process polling every 3 seconds. The window and its webview only exist while the window is shown, and the camera stream is released when it closes.
 - Watch **all printers** or pick **one**.
 - One instance at a time. Follows your light or dark theme.
@@ -63,7 +68,7 @@ Bambuddy ──REST──▶ Rust poller (every 3 s) ──▶ pops the window o
     └────MJPEG camera stream────────────────▶ webview <img> (only while open)
 ```
 
-The poller reads `/printers/{id}/status`. The window is a small webview that shows the camera stream directly, so no video code is needed. Stop print calls `/printers/{id}/print/stop`.
+The poller reads `/printers/{id}/status`. The window is a small webview that shows the camera stream directly, so no video code is needed. Stop print calls `/printers/{id}/print/stop`. Alerts are worked out from the status it already polls: state changes, new printer warnings (out of filament is recognised from the warning text), the spool in use, and the connection. Nothing is reported on the first look after launch, so restarting the app doesn't replay old problems.
 
 ## FAQ
 

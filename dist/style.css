@@ -20,3 +20,6 @@ label { display:block; margin:10px 0 3px; }
 input, select { width:100%; font:inherit; padding:6px; border-radius:4px; border:1px solid var(--bd); background:var(--card); color:var(--fg); }
 .check { display:flex; gap:8px; align-items:center; margin-top:12px; } .check input { width:auto; }
 #note { min-height:1.4em; margin-top:8px; color:var(--mut); }
+#alert { background:#fff3cd; color:#5c4400; border:1px solid #e0c36a; border-radius:4px; padding:6px 10px; cursor:pointer; }
+@media (prefers-color-scheme: dark) { #alert { background:#4a3a0a; color:#ffe9a8; border-color:#7a6320; } }
+.group { margin-top:14px; font-weight:600; }
